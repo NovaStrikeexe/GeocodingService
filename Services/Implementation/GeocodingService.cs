@@ -7,18 +7,24 @@ using Newtonsoft.Json;
 
 namespace GeocodingService.Services.Implementation;
 
-public class GeocodingService(HttpClient httpClient, IMemoryCache cache, IOptions<AppSettings> settings)
+public class GeocodingService(
+    HttpClient httpClient,
+    IMemoryCache cache,
+    IOptions<AppSettings> settings,
+    ILogger<GeocodingService> logger)
     : IGeocodingService
 {
     private readonly GeocodingSettings _geocodingSettings = settings.Value.Geocoding;
     private readonly CacheSettings _cacheSettings = settings.Value.Cache;
-    private static readonly SemaphoreSlim _semaphore = new(1, 1); // Для ограничения частоты запросов
+    private static readonly SemaphoreSlim _semaphore = new(1, 1);
 
     public async Task<GeocodeResponse> GeocodeAsync(GeocodeRequest request)
     {
         var cacheKey = $"{request.Country}-{request.City}-{request.Street}";
         if (!cache.TryGetValue(cacheKey, out GeocodeResponse cachedResponse))
         {
+            logger.LogInformation("Cache miss for geocode request with key: {CacheKey}", cacheKey);
+
             var url = $"{_geocodingSettings.NominatimUrl}?country={request.Country}&city={request.City}&street={request.Street}&format=json&limit=2";
 
             var requestMessage = new HttpRequestMessage(HttpMethod.Get, url);
@@ -34,7 +40,6 @@ public class GeocodingService(HttpClient httpClient, IMemoryCache cache, IOption
                     var jsonResponse = await response.Content.ReadAsStringAsync();
                     var geocodeResults = JsonConvert.DeserializeObject<List<GeocodeResponse>>(jsonResponse);
 
-                    // Возвращаем первый элемент, если он существует
                     cachedResponse = geocodeResults?.FirstOrDefault();
 
                     if (cachedResponse != null)
@@ -44,17 +49,24 @@ public class GeocodingService(HttpClient httpClient, IMemoryCache cache, IOption
                             AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(_cacheSettings.ExpirationSeconds)
                         };
                         cache.Set(cacheKey, cachedResponse, cacheOptions);
+                        logger.LogInformation("Geocode request succeeded and result cached for key: {CacheKey}", cacheKey);
                     }
                 }
                 else
                 {
-                    throw new Exception($"Error: {response.StatusCode}, {await response.Content.ReadAsStringAsync()}");
+                    var errorMessage = $"Error: {response.StatusCode}, {await response.Content.ReadAsStringAsync()}";
+                    logger.LogError(errorMessage);
+                    throw new Exception(errorMessage);
                 }
             }
             finally
             {
                 _semaphore.Release();
             }
+        }
+        else
+        {
+            logger.LogInformation("Cache hit for geocode request with key: {CacheKey}", cacheKey);
         }
 
         return cachedResponse;
