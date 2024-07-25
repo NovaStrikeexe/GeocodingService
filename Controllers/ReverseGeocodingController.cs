@@ -1,15 +1,16 @@
-﻿using GeocodingService.Models;
-using GeocodingService.Services;
+﻿using System.Diagnostics.CodeAnalysis;
+using GeocodingService.Models;
 using Microsoft.AspNetCore.Mvc;
+using GeocodingService.Handlers.Interfaces;
 
-[ApiController]
-[Route("api/v1")]
-public class ReverseGeocodingController(ReverseGeocodingService reverseGeocodingService) : ControllerBase
+namespace GeocodingService.Controllers
 {
-    [HttpGet("ReverseGeocoding")]
-    public async Task<IActionResult> ReverseGeocode([FromQuery] ReverseGeocodeRequest request)
+    [ApiController]
+    [Route("api/v1/reverse_geocoding")]
+    public class ReverseGeocodingController(IHandler<ReverseGeocodeRequest> reverseGeocodingHandler) : ControllerBase
     {
-        var result = await reverseGeocodingService.ReverseGeocodeAsync(request);
-        return Ok(result);
+        [HttpGet]
+        public async Task<IActionResult> ReverseGeocode([FromQuery] [NotNull] ReverseGeocodeRequest request) 
+            => await reverseGeocodingHandler.HandleAsync(request);
     }
 }

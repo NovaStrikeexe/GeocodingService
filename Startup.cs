@@ -1,6 +1,10 @@
-﻿using GeocodingService.Middleware;
+﻿using GeocodingService.Configuration;
+using GeocodingService.Handlers.Implementation;
+using GeocodingService.Handlers.Interfaces;
+using GeocodingService.Middleware;
 using GeocodingService.Models;
-using GeocodingService.Services;
+using GeocodingService.Services.Implementation;
+using GeocodingService.Services.Interfaces;
 using Microsoft.OpenApi.Models;
 
 namespace GeocodingService;
@@ -18,13 +22,20 @@ public class Startup
     {
         services.Configure<AppSettings>(Configuration);
 
-        services.AddControllers();
+        services.Configure<GeocodingSettings>(Configuration.GetSection("Geocoding"));
+        services.Configure<CacheSettings>(Configuration.GetSection("Cache"));
 
-        services.AddHttpClient<Services.GeocodingService>();
-        services.AddHttpClient<ReverseGeocodingService>();
+        
+        services.AddHttpClient<IGeocodingService, Services.Implementation.GeocodingService>();
+        services.AddTransient<IReverseGeocodingService, ReverseGeocodingService>();
+        services.AddSingleton<ICacheService, CacheService>();
+        services.AddSingleton<IHandler<GeocodeRequest>, GeocodingHandler>();
+        services.AddSingleton<IHandler<ReverseGeocodeRequest>, ReverseGeocodingHandler>();
+        services.AddControllers();
 
         services.AddMemoryCache();
 
+        
         services.AddSwaggerGen(c =>
         {
             c.SwaggerDoc("v1", new OpenApiInfo
@@ -32,11 +43,6 @@ public class Startup
                 Title = "Geocoding API",
                 Version = "v1",
                 Description = "API for Geocoding and Reverse Geocoding",
-                Contact = new OpenApiContact
-                {
-                    Name = "Your Name",
-                    Email = "your.email@example.com"
-                }
             });
         });
     }
@@ -48,7 +54,7 @@ public class Startup
             app.UseDeveloperExceptionPage();
         }
 
-        app.UseMiddleware<ErrorHandlingMiddleware>();
+        app.UseMiddleware<ExceptionMiddleware>();
 
         app.UseRouting();
 

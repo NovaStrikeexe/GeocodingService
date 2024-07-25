@@ -3,7 +3,7 @@ using Serilog.Formatting;
 
 namespace GeocodingService.Formatters;
 
-public class CustomTemplateFormatter(string template) : ITextFormatter
+public class CustomLogFormatter(string template) : ITextFormatter
 {
     public void Format(LogEvent logEvent, TextWriter output)
     {

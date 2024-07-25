@@ -1,11 +1,14 @@
-﻿using GeocodingService.Models;
+﻿using GeocodingService.Configuration;
+using GeocodingService.Models;
+using GeocodingService.Services.Interfaces;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 
-namespace GeocodingService.Services;
+namespace GeocodingService.Services.Implementation;
 
 public class GeocodingService(HttpClient httpClient, IMemoryCache cache, IOptions<AppSettings> settings)
+    : IGeocodingService
 {
     private readonly GeocodingSettings _geocodingSettings = settings.Value.Geocoding;
     private readonly CacheSettings _cacheSettings = settings.Value.Cache;
@@ -17,7 +20,7 @@ public class GeocodingService(HttpClient httpClient, IMemoryCache cache, IOption
         if (!cache.TryGetValue(cacheKey, out GeocodeResponse cachedResponse))
         {
             var url = $"{_geocodingSettings.NominatimUrl}?country={request.Country}&city={request.City}&street={request.Street}&format=json&limit=2";
-            
+
             var requestMessage = new HttpRequestMessage(HttpMethod.Get, url);
             requestMessage.Headers.Add("User-Agent", "GeocodingService/1.0");
 
@@ -31,6 +34,7 @@ public class GeocodingService(HttpClient httpClient, IMemoryCache cache, IOption
                     var jsonResponse = await response.Content.ReadAsStringAsync();
                     var geocodeResults = JsonConvert.DeserializeObject<List<GeocodeResponse>>(jsonResponse);
 
+                    // Возвращаем первый элемент, если он существует
                     cachedResponse = geocodeResults?.FirstOrDefault();
 
                     if (cachedResponse != null)
